@@ -1,0 +1,28 @@
+name: flex_table
+description: >-
+  A highly customizable Flutter table widget with sorting, selection,
+  expandable rows, collapsible groups, column visibility, striped rows,
+  and a comprehensive theming system.
+version: 0.1.0
+homepage: https://github.com/Miso-0/flex_table
+repository: https://github.com/Miso-0/flex_table
+issue_tracker: https://github.com/Miso-0/flex_table/issues
+
+topics:
+  - table
+  - data-table
+  - grid
+  - ui
+
+environment:
+  sdk: ^3.11.0
+  flutter: ">=1.17.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0

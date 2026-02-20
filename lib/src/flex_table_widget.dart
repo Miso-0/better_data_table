@@ -1,0 +1,930 @@
+import 'package:flutter/material.dart';
+
+import 'flex_table_column.dart';
+import 'flex_table_group.dart';
+import 'flex_table_row.dart';
+import 'flex_table_theme.dart';
+
+/// A highly customizable and flexible table widget for Flutter.
+///
+/// `FlexTable` renders tabular data using Flutter's [Table] widget as its
+/// layout engine. It supports:
+///
+/// - Flexible, fixed, intrinsic, and fractional column widths
+/// - Sortable columns with ascending/descending indicators
+/// - Checkbox row selection with select-all support
+/// - Expandable rows with custom content builders
+/// - Collapsible row groups
+/// - Alternating/striped row colors
+/// - Column visibility toggling
+/// - Loading and empty states with custom builders
+/// - Footer rows for summaries/totals
+/// - Hover effects and rich row/cell interaction callbacks
+/// - Comprehensive per-column, per-row, and theme-level styling
+///
+/// The table does not manage its own scrolling. Wrap it in a [SingleChildScrollView]
+/// or [ListView] when content may overflow.
+///
+/// ## Basic usage
+///
+/// ```dart
+/// FlexTable(
+///   columns: [
+///     FlexTableColumn(header: Text('Name'), width: FlexColumnWidth(2), sortable: true),
+///     FlexTableColumn(header: Text('Age'), width: FixedColumnWidth(80)),
+///   ],
+///   rows: [
+///     FlexTableRow(cells: [Text('Alice'), Text('28')]),
+///     FlexTableRow(cells: [Text('Bob'), Text('34')]),
+///   ],
+/// )
+/// ```
+class FlexTable extends StatefulWidget {
+  const FlexTable({
+    super.key,
+    required this.columns,
+    this.rows = const [],
+    this.theme,
+    // ── Builders ─────────────────────────────────────────────────────────────
+    this.headerBuilder,
+    this.cellBuilder,
+    this.rowBuilder,
+    this.emptyBuilder,
+    this.loadingBuilder,
+    // ── Footer ───────────────────────────────────────────────────────────────
+    this.footerRows,
+    // ── Selection ────────────────────────────────────────────────────────────
+    this.showCheckboxes = false,
+    this.checkboxBuilder,
+    this.onSelectAll,
+    this.selectedRows = const {},
+    this.onRowSelected,
+    // ── Expansion ────────────────────────────────────────────────────────────
+    this.expandableRowBuilder,
+    this.expandedRows = const {},
+    this.onRowExpanded,
+    // ── Loading ───────────────────────────────────────────────────────────────
+    this.isLoading = false,
+    // ── Sorting ───────────────────────────────────────────────────────────────
+    this.onSort,
+    this.sortColumnIndex,
+    this.sortAscending = true,
+    // ── Groups ───────────────────────────────────────────────────────────────
+    this.groups,
+    this.groupHeaderBuilder,
+    this.collapsedGroups = const {},
+    this.onGroupToggled,
+    // ── Callbacks ────────────────────────────────────────────────────────────
+    this.onRowTap,
+    this.onRowDoubleTap,
+    this.onRowLongPress,
+    this.onRowSecondaryTap,
+    this.onCellTap,
+    // ── Styling ───────────────────────────────────────────────────────────────
+    this.border,
+    this.rowDivider,
+  });
+
+  // ── Data ───────────────────────────────────────────────────────────────────
+
+  /// Column definitions. Columns with [FlexTableColumn.visible] set to `false`
+  /// are excluded from layout and rendering.
+  final List<FlexTableColumn> columns;
+
+  /// Data rows. Each row's [FlexTableRow.cells] list corresponds positionally
+  /// to the *visible* columns.
+  final List<FlexTableRow> rows;
+
+  /// Theme overrides. When `null`, [FlexTableTheme.defaultTheme] is used.
+  final FlexTableTheme? theme;
+
+  // ── Builders ───────────────────────────────────────────────────────────────
+
+  /// Replaces the default header cell rendering for every column.
+  ///
+  /// Receives the [BuildContext], the [FlexTableColumn] (original, including
+  /// hidden columns that are filtered before this is called), and its original
+  /// index in [columns].
+  final Widget Function(
+    BuildContext context,
+    FlexTableColumn column,
+    int columnIndex,
+  )?
+  headerBuilder;
+
+  /// Replaces the default data cell rendering for every cell.
+  ///
+  /// Receives the original cell [Widget], its [FlexTableColumn], the
+  /// [FlexTableRow], the row index, and the original column index.
+  final Widget Function(
+    BuildContext context,
+    Widget cell,
+    FlexTableColumn column,
+    FlexTableRow row,
+    int rowIndex,
+    int columnIndex,
+  )?
+  cellBuilder;
+
+  /// Wraps or replaces the rendered [TableRow] for each data row.
+  ///
+  /// `defaultRow` is the widget produced by the default rendering pipeline.
+  final Widget Function(
+    BuildContext context,
+    FlexTableRow row,
+    int rowIndex,
+    Widget defaultRow,
+  )?
+  rowBuilder;
+
+  /// Replaces the default empty-state widget shown when [rows] is empty.
+  final Widget Function(BuildContext context)? emptyBuilder;
+
+  /// Replaces the default loading widget shown when [isLoading] is `true`.
+  final Widget Function(BuildContext context)? loadingBuilder;
+
+  // ── Footer ─────────────────────────────────────────────────────────────────
+
+  /// Optional footer rows rendered below data rows (e.g., totals).
+  final List<FlexTableRow>? footerRows;
+
+  // ── Selection ──────────────────────────────────────────────────────────────
+
+  /// Whether to show a leading checkbox column.
+  final bool showCheckboxes;
+
+  /// Replaces the default [Checkbox] widget for both the header (select-all)
+  /// and data row checkboxes.
+  ///
+  /// `value` is `true` (selected), `false` (unselected), or `null` (tristate
+  /// indeterminate, header only).
+  final Widget Function(
+    BuildContext context,
+    bool? value,
+    ValueChanged<bool?>? onChanged,
+  )?
+  checkboxBuilder;
+
+  /// Called when the header (select-all) checkbox changes. The argument is
+  /// `true` (select all), `false` (deselect all), or `null`.
+  final ValueChanged<bool?>? onSelectAll;
+
+  /// Row indices that are currently selected. The widget keeps an internal copy
+  /// and re-syncs when this set changes identity.
+  final Set<int> selectedRows;
+
+  /// Called with the row index when a checkbox is toggled.
+  final ValueChanged<int>? onRowSelected;
+
+  // ── Expansion ──────────────────────────────────────────────────────────────
+
+  /// Returns the widget to display below the row when it is expanded, or
+  /// `null` if the row is not expandable.
+  final Widget? Function(BuildContext context, FlexTableRow row, int rowIndex)?
+  expandableRowBuilder;
+
+  /// Row indices that are currently expanded.
+  final Set<int> expandedRows;
+
+  /// Called with the row index when the expand/collapse button is tapped.
+  final ValueChanged<int>? onRowExpanded;
+
+  // ── Loading ─────────────────────────────────────────────────────────────────
+
+  /// When `true`, the table body is replaced by the loading indicator.
+  final bool isLoading;
+
+  // ── Sorting ─────────────────────────────────────────────────────────────────
+
+  /// Called with the original column index when a sortable header is tapped.
+  final void Function(int columnIndex)? onSort;
+
+  /// Original column index of the currently sorted column. The sort indicator
+  /// is shown only when this matches a visible, sortable column.
+  final int? sortColumnIndex;
+
+  /// Direction of the current sort. Defaults to `true` (ascending).
+  final bool sortAscending;
+
+  // ── Groups ─────────────────────────────────────────────────────────────────
+
+  /// Optional list of [FlexTableGroup] definitions. When provided, rows are
+  /// rendered in group sections with a spanning header row.
+  final List<FlexTableGroup>? groups;
+
+  /// Replaces the default group header cell rendering.
+  final Widget Function(
+    BuildContext context,
+    FlexTableGroup group,
+    int groupIndex,
+  )?
+  groupHeaderBuilder;
+
+  /// Group indices (position in [groups]) that are currently collapsed.
+  final Set<int> collapsedGroups;
+
+  /// Called with the group index when a collapsible group header is tapped.
+  final ValueChanged<int>? onGroupToggled;
+
+  // ── Callbacks ──────────────────────────────────────────────────────────────
+
+  /// Called with the row index when a data row is tapped.
+  final ValueChanged<int>? onRowTap;
+
+  /// Called with the row index when a data row is double-tapped.
+  final ValueChanged<int>? onRowDoubleTap;
+
+  /// Called with the row index when a data row is long-pressed.
+  final ValueChanged<int>? onRowLongPress;
+
+  /// Called with the row index when a data row receives a secondary tap
+  /// (right-click on desktop, long-press context on some platforms).
+  final ValueChanged<int>? onRowSecondaryTap;
+
+  /// Called with (rowIndex, columnIndex) when a data cell is tapped.
+  /// Column index is the *original* index in [columns].
+  final void Function(int rowIndex, int columnIndex)? onCellTap;
+
+  // ── Styling ─────────────────────────────────────────────────────────────────
+
+  /// Table border overriding [FlexTableTheme.border].
+  final TableBorder? border;
+
+  /// When set, this [BorderSide] is drawn as the bottom edge of every data row,
+  /// creating a visual divider between rows.
+  final BorderSide? rowDivider;
+
+  @override
+  State<FlexTable> createState() => _FlexTableState();
+}
+
+// =============================================================================
+
+class _FlexTableState extends State<FlexTable> {
+  late Set<int> _selectedRows;
+  late Set<int> _expandedRows;
+  late Set<int> _collapsedGroups;
+  final Map<int, bool> _hoveredRows = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedRows = Set.from(widget.selectedRows);
+    _expandedRows = Set.from(widget.expandedRows);
+    _collapsedGroups = Set.from(widget.collapsedGroups);
+  }
+
+  @override
+  void didUpdateWidget(FlexTable oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.selectedRows != oldWidget.selectedRows) {
+      _selectedRows = Set.from(widget.selectedRows);
+    }
+    if (widget.expandedRows != oldWidget.expandedRows) {
+      _expandedRows = Set.from(widget.expandedRows);
+    }
+    if (widget.collapsedGroups != oldWidget.collapsedGroups) {
+      _collapsedGroups = Set.from(widget.collapsedGroups);
+    }
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  /// Returns (originalIndex, column) pairs for all visible columns.
+  List<(int, FlexTableColumn)> get _visibleColumns {
+    final result = <(int, FlexTableColumn)>[];
+    for (var i = 0; i < widget.columns.length; i++) {
+      if (widget.columns[i].visible) result.add((i, widget.columns[i]));
+    }
+    return result;
+  }
+
+  int get _totalColumnCount =>
+      _visibleColumns.length +
+      (widget.showCheckboxes ? 1 : 0) +
+      (widget.expandableRowBuilder != null ? 1 : 0);
+
+  BoxDecoration? _rowDecoration(
+    FlexTableTheme theme,
+    int rowIndex, {
+    required bool isSelected,
+    required bool isHovered,
+    BoxDecoration? customDecoration,
+  }) {
+    BoxDecoration? base;
+    if (customDecoration != null) {
+      base = customDecoration;
+    } else if (isSelected) {
+      base = theme.selectedRowDecoration;
+    } else if (isHovered) {
+      base = theme.hoveredRowDecoration;
+    } else if (theme.alternateRowDecoration != null && rowIndex.isOdd) {
+      base = theme.alternateRowDecoration;
+    } else {
+      base = theme.rowDecoration;
+    }
+
+    if (widget.rowDivider != null) {
+      final border = Border(bottom: widget.rowDivider!);
+      if (base != null) {
+        return base.copyWith(
+          border: base.border != null
+              ? (base.border as Border?)?.add(border) ?? border
+              : border,
+        );
+      }
+      return BoxDecoration(border: border);
+    }
+
+    return base;
+  }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = widget.theme ?? FlexTableTheme.defaultTheme(context);
+
+    if (widget.isLoading) {
+      return widget.loadingBuilder?.call(context) ?? _buildDefaultLoading();
+    }
+
+    if (widget.rows.isEmpty && widget.groups == null) {
+      return widget.emptyBuilder?.call(context) ?? _buildDefaultEmpty(theme);
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [_buildTable(context, theme)],
+    );
+  }
+
+  Widget _buildTable(BuildContext context, FlexTableTheme theme) {
+    return Table(
+      border: widget.border ?? theme.border,
+      columnWidths: _buildColumnWidths(),
+      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+      children: [
+        _buildHeaderRow(context, theme),
+        if (widget.groups != null)
+          ..._buildGroupedRows(context, theme)
+        else
+          ..._buildDataRows(context, theme),
+        if (widget.footerRows != null) ..._buildFooterRows(context, theme),
+      ],
+    );
+  }
+
+  // ── Column widths ──────────────────────────────────────────────────────────
+
+  Map<int, TableColumnWidth> _buildColumnWidths() {
+    final widths = <int, TableColumnWidth>{};
+    int offset = 0;
+
+    if (widget.showCheckboxes) {
+      widths[0] = const FixedColumnWidth(48);
+      offset = 1;
+    }
+
+    final visible = _visibleColumns;
+    for (var vi = 0; vi < visible.length; vi++) {
+      final column = visible[vi].$2;
+      TableColumnWidth w = column.width ?? const FlexColumnWidth(1);
+      if (column.minWidth != null) {
+        w = MaxColumnWidth(FixedColumnWidth(column.minWidth!), w);
+      }
+      if (column.maxWidth != null) {
+        w = MinColumnWidth(FixedColumnWidth(column.maxWidth!), w);
+      }
+      widths[vi + offset] = w;
+    }
+
+    if (widget.expandableRowBuilder != null) {
+      widths[visible.length + offset] = const FixedColumnWidth(48);
+    }
+
+    return widths;
+  }
+
+  // ── Header ─────────────────────────────────────────────────────────────────
+
+  TableRow _buildHeaderRow(BuildContext context, FlexTableTheme theme) {
+    final cells = <Widget>[];
+
+    if (widget.showCheckboxes) {
+      cells.add(_buildSelectAllCheckbox(context, theme));
+    }
+
+    for (final (originalIndex, column) in _visibleColumns) {
+      cells.add(_buildHeaderCell(context, column, originalIndex, theme));
+    }
+
+    if (widget.expandableRowBuilder != null) {
+      cells.add(const SizedBox(width: 48));
+    }
+
+    return TableRow(decoration: theme.headerDecoration, children: cells);
+  }
+
+  Widget _buildSelectAllCheckbox(BuildContext context, FlexTableTheme theme) {
+    final allSelected =
+        widget.rows.isNotEmpty &&
+        _selectedRows.length == widget.rows.length;
+    final someSelected =
+        _selectedRows.isNotEmpty &&
+        _selectedRows.length < widget.rows.length;
+    final value = allSelected ? true : (someSelected ? null : false);
+
+    void onChanged(bool? v) {
+      setState(() {
+        if (v == true) {
+          _selectedRows = Set.from(
+            List.generate(widget.rows.length, (i) => i),
+          );
+        } else {
+          _selectedRows.clear();
+        }
+      });
+      widget.onSelectAll?.call(v);
+    }
+
+    return Container(
+      padding: theme.headerCellPadding,
+      alignment: Alignment.center,
+      child:
+          widget.checkboxBuilder?.call(context, value, onChanged) ??
+          Checkbox(
+            value: value,
+            tristate: true,
+            onChanged: onChanged,
+          ),
+    );
+  }
+
+  Widget _buildHeaderCell(
+    BuildContext context,
+    FlexTableColumn column,
+    int originalIndex,
+    FlexTableTheme theme,
+  ) {
+    if (widget.headerBuilder != null) {
+      return widget.headerBuilder!(context, column, originalIndex);
+    }
+
+    Widget content = column.header;
+
+    if (column.sortable && widget.sortColumnIndex == originalIndex) {
+      content = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(child: content),
+          const SizedBox(width: 4),
+          Icon(
+            widget.sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
+            size: 16,
+            color: theme.sortIconColor,
+          ),
+        ],
+      );
+    }
+
+    final cell = Container(
+      padding: column.headerPadding ?? theme.headerCellPadding,
+      alignment: column.headerAlignment ?? theme.headerCellAlignment,
+      child: DefaultTextStyle(
+        style:
+            theme.headerTextStyle ??
+            const TextStyle(fontWeight: FontWeight.bold),
+        child: content,
+      ),
+    );
+
+    final tappable = InkWell(
+      onTap: column.sortable && widget.onSort != null
+          ? () => widget.onSort!(originalIndex)
+          : column.onTap,
+      child: cell,
+    );
+
+    if (column.tooltip != null) {
+      return Tooltip(message: column.tooltip!, child: tappable);
+    }
+
+    return tappable;
+  }
+
+  // ── Data rows ──────────────────────────────────────────────────────────────
+
+  List<TableRow> _buildDataRows(BuildContext context, FlexTableTheme theme) {
+    final rows = <TableRow>[];
+    for (var i = 0; i < widget.rows.length; i++) {
+      rows.add(_buildDataRow(context, widget.rows[i], i, theme));
+      if (_expandedRows.contains(i) && widget.expandableRowBuilder != null) {
+        rows.add(_buildExpandedRow(context, widget.rows[i], i, theme));
+      }
+    }
+    return rows;
+  }
+
+  TableRow _buildDataRow(
+    BuildContext context,
+    FlexTableRow row,
+    int rowIndex,
+    FlexTableTheme theme,
+  ) {
+    final cells = <Widget>[];
+    final isHovered = _hoveredRows[rowIndex] ?? false;
+    final isSelected = _selectedRows.contains(rowIndex);
+
+    // Checkbox
+    if (widget.showCheckboxes) {
+      cells.add(_buildRowCheckbox(context, rowIndex, isSelected, theme));
+    }
+
+    // Data cells
+    final visible = _visibleColumns;
+    for (var vi = 0; vi < visible.length; vi++) {
+      final (originalIndex, column) = visible[vi];
+      if (originalIndex >= row.cells.length) {
+        cells.add(const SizedBox.shrink());
+        continue;
+      }
+      cells.add(
+        _buildDataCell(
+          context,
+          row.cells[originalIndex],
+          column,
+          row,
+          rowIndex,
+          originalIndex,
+          theme,
+        ),
+      );
+    }
+
+    // Expand toggle
+    if (widget.expandableRowBuilder != null) {
+      cells.add(_buildExpandToggle(context, row, rowIndex, theme));
+    }
+
+    final decoration = _rowDecoration(
+      theme,
+      rowIndex,
+      isSelected: isSelected,
+      isHovered: isHovered,
+      customDecoration: row.decoration,
+    );
+
+    final hasTap =
+        widget.onRowTap != null ||
+        widget.onRowDoubleTap != null ||
+        widget.onRowLongPress != null ||
+        widget.onRowSecondaryTap != null ||
+        row.onTap != null;
+
+    final needsMouseRegion = theme.enableHoverEffect || hasTap;
+
+    if (!needsMouseRegion) {
+      return TableRow(decoration: decoration, children: cells);
+    }
+
+    final wrappedCells = cells.map((cell) {
+      Widget child = cell;
+
+      if (hasTap) {
+        child = GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            widget.onRowTap?.call(rowIndex);
+            row.onTap?.call();
+          },
+          onDoubleTap: widget.onRowDoubleTap != null
+              ? () => widget.onRowDoubleTap!(rowIndex)
+              : null,
+          onLongPress: widget.onRowLongPress != null
+              ? () => widget.onRowLongPress!(rowIndex)
+              : null,
+          onSecondaryTap: widget.onRowSecondaryTap != null
+              ? () => widget.onRowSecondaryTap!(rowIndex)
+              : null,
+          child: child,
+        );
+      }
+
+      if (theme.enableHoverEffect) {
+        child = MouseRegion(
+          onEnter: (_) => setState(() => _hoveredRows[rowIndex] = true),
+          onExit: (_) => setState(() => _hoveredRows[rowIndex] = false),
+          child: child,
+        );
+      }
+
+      if (row.tooltip != null) {
+        child = Tooltip(message: row.tooltip!, child: child);
+      }
+
+      return child;
+    }).toList();
+
+    return TableRow(decoration: decoration, children: wrappedCells);
+  }
+
+  Widget _buildRowCheckbox(
+    BuildContext context,
+    int rowIndex,
+    bool isSelected,
+    FlexTableTheme theme,
+  ) {
+    void onChanged(bool? v) {
+      setState(() {
+        if (v == true) {
+          _selectedRows.add(rowIndex);
+        } else {
+          _selectedRows.remove(rowIndex);
+        }
+      });
+      widget.onRowSelected?.call(rowIndex);
+    }
+
+    return Container(
+      padding: theme.cellPadding,
+      alignment: Alignment.center,
+      child:
+          widget.checkboxBuilder?.call(context, isSelected, onChanged) ??
+          Checkbox(value: isSelected, onChanged: onChanged),
+    );
+  }
+
+  Widget _buildDataCell(
+    BuildContext context,
+    Widget cell,
+    FlexTableColumn column,
+    FlexTableRow row,
+    int rowIndex,
+    int originalColumnIndex,
+    FlexTableTheme theme,
+  ) {
+    if (widget.cellBuilder != null) {
+      return widget.cellBuilder!(
+        context,
+        cell,
+        column,
+        row,
+        rowIndex,
+        originalColumnIndex,
+      );
+    }
+
+    return InkWell(
+      onTap: widget.onCellTap != null
+          ? () => widget.onCellTap!(rowIndex, originalColumnIndex)
+          : null,
+      child: Container(
+        padding: column.cellPadding ?? row.cellPadding ?? theme.cellPadding,
+        alignment:
+            column.cellAlignment ?? row.cellAlignment ?? theme.cellAlignment,
+        constraints: column.constraints,
+        child: DefaultTextStyle.merge(
+          style: theme.cellTextStyle ?? const TextStyle(),
+          child: cell,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExpandToggle(
+    BuildContext context,
+    FlexTableRow row,
+    int rowIndex,
+    FlexTableTheme theme,
+  ) {
+    final isExpandable =
+        widget.expandableRowBuilder!(context, row, rowIndex) != null;
+
+    return Container(
+      padding: theme.cellPadding,
+      alignment: Alignment.center,
+      child: isExpandable
+          ? InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () {
+                setState(() {
+                  if (_expandedRows.contains(rowIndex)) {
+                    _expandedRows.remove(rowIndex);
+                  } else {
+                    _expandedRows.add(rowIndex);
+                  }
+                });
+                widget.onRowExpanded?.call(rowIndex);
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Icon(
+                  _expandedRows.contains(rowIndex)
+                      ? Icons.expand_less
+                      : Icons.expand_more,
+                  size: 20,
+                ),
+              ),
+            )
+          : null,
+    );
+  }
+
+  // ── Expanded row ──────────────────────────────────────────────────────────
+
+  TableRow _buildExpandedRow(
+    BuildContext context,
+    FlexTableRow row,
+    int rowIndex,
+    FlexTableTheme theme,
+  ) {
+    final content = widget.expandableRowBuilder!(context, row, rowIndex);
+    if (content == null) {
+      return TableRow(
+        children: List.generate(_totalColumnCount, (_) => const SizedBox.shrink()),
+      );
+    }
+
+    return TableRow(
+      decoration: theme.expandedRowDecoration,
+      children: [
+        Container(
+          padding: theme.expandedRowPadding ?? theme.cellPadding,
+          child: content,
+        ),
+        ...List.generate(
+          _totalColumnCount - 1,
+          (_) => const SizedBox.shrink(),
+        ),
+      ],
+    );
+  }
+
+  // ── Groups ─────────────────────────────────────────────────────────────────
+
+  List<TableRow> _buildGroupedRows(BuildContext context, FlexTableTheme theme) {
+    final rows = <TableRow>[];
+    final groups = widget.groups!;
+
+    for (var gi = 0; gi < groups.length; gi++) {
+      final group = groups[gi];
+      final isCollapsed = _collapsedGroups.contains(gi);
+
+      rows.add(_buildGroupHeader(context, group, gi, isCollapsed, theme));
+
+      if (!isCollapsed) {
+        for (
+          var ri = group.startIndex;
+          ri <= group.endIndex && ri < widget.rows.length;
+          ri++
+        ) {
+          final row = widget.rows[ri];
+          rows.add(_buildDataRow(context, row, ri, theme));
+          if (_expandedRows.contains(ri) &&
+              widget.expandableRowBuilder != null) {
+            rows.add(_buildExpandedRow(context, row, ri, theme));
+          }
+        }
+      }
+    }
+
+    return rows;
+  }
+
+  TableRow _buildGroupHeader(
+    BuildContext context,
+    FlexTableGroup group,
+    int groupIndex,
+    bool isCollapsed,
+    FlexTableTheme theme,
+  ) {
+    Widget content;
+
+    if (widget.groupHeaderBuilder != null) {
+      content = widget.groupHeaderBuilder!(context, group, groupIndex);
+    } else {
+      Widget headerContent = group.header;
+
+      if (group.collapsible) {
+        headerContent = Row(
+          children: [
+            Expanded(child: headerContent),
+            Icon(
+              isCollapsed ? Icons.chevron_right : Icons.expand_more,
+              size: 20,
+            ),
+          ],
+        );
+      }
+
+      content = Container(
+        padding: theme.groupHeaderPadding ?? theme.cellPadding,
+        alignment: Alignment.centerLeft,
+        child: DefaultTextStyle(
+          style:
+              theme.groupHeaderTextStyle ??
+              const TextStyle(fontWeight: FontWeight.bold),
+          child: headerContent,
+        ),
+      );
+    }
+
+    if (group.collapsible) {
+      content = InkWell(
+        onTap: () {
+          setState(() {
+            if (_collapsedGroups.contains(groupIndex)) {
+              _collapsedGroups.remove(groupIndex);
+            } else {
+              _collapsedGroups.add(groupIndex);
+            }
+          });
+          widget.onGroupToggled?.call(groupIndex);
+        },
+        child: content,
+      );
+    }
+
+    return TableRow(
+      decoration: theme.groupHeaderDecoration ?? theme.headerDecoration,
+      children: [
+        content,
+        ...List.generate(_totalColumnCount - 1, (_) => const SizedBox.shrink()),
+      ],
+    );
+  }
+
+  // ── Footer ─────────────────────────────────────────────────────────────────
+
+  List<TableRow> _buildFooterRows(BuildContext context, FlexTableTheme theme) {
+    return widget.footerRows!.map((row) {
+      final cells = <Widget>[];
+
+      if (widget.showCheckboxes) {
+        cells.add(const SizedBox.shrink());
+      }
+
+      final visible = _visibleColumns;
+      for (var vi = 0; vi < visible.length; vi++) {
+        final (originalIndex, column) = visible[vi];
+        if (originalIndex >= row.cells.length) {
+          cells.add(const SizedBox.shrink());
+          continue;
+        }
+
+        cells.add(
+          Container(
+            padding:
+                column.cellPadding ??
+                row.cellPadding ??
+                theme.footerCellPadding ??
+                theme.cellPadding,
+            alignment:
+                column.cellAlignment ??
+                row.cellAlignment ??
+                theme.footerCellAlignment ??
+                theme.cellAlignment,
+            child: DefaultTextStyle(
+              style:
+                  theme.footerTextStyle ??
+                  const TextStyle(fontWeight: FontWeight.bold),
+              child: row.cells[originalIndex],
+            ),
+          ),
+        );
+      }
+
+      if (widget.expandableRowBuilder != null) {
+        cells.add(const SizedBox.shrink());
+      }
+
+      return TableRow(
+        decoration: row.decoration ?? theme.footerDecoration,
+        children: cells,
+      );
+    }).toList();
+  }
+
+  // ── Empty / loading ────────────────────────────────────────────────────────
+
+  Widget _buildDefaultLoading() {
+    return const Padding(
+      padding: EdgeInsets.all(32),
+      child: Center(child: CircularProgressIndicator()),
+    );
+  }
+
+  Widget _buildDefaultEmpty(FlexTableTheme theme) {
+    return Padding(
+      padding: const EdgeInsets.all(32),
+      child: Center(
+        child: Text(
+          'No data available',
+          style: theme.emptyTextStyle ?? TextStyle(color: Colors.grey[600]),
+        ),
+      ),
+    );
+  }
+}
