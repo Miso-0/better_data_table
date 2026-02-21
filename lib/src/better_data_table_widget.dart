@@ -311,8 +311,8 @@ class _BetterDataTableState extends State<BetterDataTable> {
   }
 
   int get _totalColumnCount {
-    final hasExpandColumn = widget.expandableRowBuilder != null ||
-        _anyRowHasChildren(widget.rows);
+    final hasExpandColumn =
+        widget.expandableRowBuilder != null || _anyRowHasChildren(widget.rows);
     return _visibleColumns.length +
         (widget.showCheckboxes ? 1 : 0) +
         (hasExpandColumn ? 1 : 0);
@@ -426,8 +426,8 @@ class _BetterDataTableState extends State<BetterDataTable> {
       widths[vi + offset] = w;
     }
 
-    final hasExpandColumn = widget.expandableRowBuilder != null ||
-        _anyRowHasChildren(widget.rows);
+    final hasExpandColumn =
+        widget.expandableRowBuilder != null || _anyRowHasChildren(widget.rows);
     if (hasExpandColumn) {
       widths[visible.length + offset] = const FixedColumnWidth(48);
     }
@@ -448,8 +448,8 @@ class _BetterDataTableState extends State<BetterDataTable> {
       cells.add(_buildHeaderCell(context, column, originalIndex, theme));
     }
 
-    final hasExpandColumn = widget.expandableRowBuilder != null ||
-        _anyRowHasChildren(widget.rows);
+    final hasExpandColumn =
+        widget.expandableRowBuilder != null || _anyRowHasChildren(widget.rows);
     if (hasExpandColumn) {
       cells.add(const SizedBox(width: 48));
     }
@@ -462,19 +462,15 @@ class _BetterDataTableState extends State<BetterDataTable> {
     BetterDataTableTheme theme,
   ) {
     final allSelected =
-        widget.rows.isNotEmpty &&
-        _selectedRows.length == widget.rows.length;
+        widget.rows.isNotEmpty && _selectedRows.length == widget.rows.length;
     final someSelected =
-        _selectedRows.isNotEmpty &&
-        _selectedRows.length < widget.rows.length;
+        _selectedRows.isNotEmpty && _selectedRows.length < widget.rows.length;
     final value = allSelected ? true : (someSelected ? null : false);
 
     void onChanged(bool? v) {
       setState(() {
         if (v == true) {
-          _selectedRows = Set.from(
-            List.generate(widget.rows.length, (i) => i),
-          );
+          _selectedRows = Set.from(List.generate(widget.rows.length, (i) => i));
         } else {
           _selectedRows.clear();
         }
@@ -487,11 +483,7 @@ class _BetterDataTableState extends State<BetterDataTable> {
       alignment: Alignment.center,
       child:
           widget.checkboxBuilder?.call(context, value, onChanged) ??
-          Checkbox(
-            value: value,
-            tristate: true,
-            onChanged: onChanged,
-          ),
+          Checkbox(value: value, tristate: true, onChanged: onChanged),
     );
   }
 
@@ -560,15 +552,7 @@ class _BetterDataTableState extends State<BetterDataTable> {
   ) {
     final rows = <TableRow>[];
     for (var i = 0; i < widget.rows.length; i++) {
-      _buildDataRowRecursive(
-        context,
-        widget.rows[i],
-        i,
-        '$i',
-        0,
-        theme,
-        rows,
-      );
+      _buildDataRowRecursive(context, widget.rows[i], i, '$i', 0, theme, rows);
     }
     return rows;
   }
@@ -583,7 +567,9 @@ class _BetterDataTableState extends State<BetterDataTable> {
     List<TableRow> rows,
   ) {
     // Add the current row
-    rows.add(_buildDataRow(context, row, rowIndex, rowPath, nestingLevel, theme));
+    rows.add(
+      _buildDataRow(context, row, rowIndex, rowPath, nestingLevel, theme),
+    );
 
     // Check if we should show custom expanded content
     final isExpanded = _expandedRows.contains(rowPath);
@@ -651,12 +637,21 @@ class _BetterDataTableState extends State<BetterDataTable> {
 
     // Expand toggle column – always add when the column exists to keep all rows
     // the same width. The toggle renders empty for non-expandable rows.
-    final hasExpandColumn = widget.expandableRowBuilder != null ||
-        _anyRowHasChildren(widget.rows);
+    final hasExpandColumn =
+        widget.expandableRowBuilder != null || _anyRowHasChildren(widget.rows);
     if (hasExpandColumn) {
       final hasChildren = row.children != null && row.children!.isNotEmpty;
       final hasExpandableContent = widget.expandableRowBuilder != null;
-      cells.add(_buildExpandToggle(context, row, rowPath, hasChildren, hasExpandableContent, theme));
+      cells.add(
+        _buildExpandToggle(
+          context,
+          row,
+          rowPath,
+          hasChildren,
+          hasExpandableContent,
+          theme,
+        ),
+      );
     }
 
     final decoration = _rowDecoration(
@@ -809,17 +804,21 @@ class _BetterDataTableState extends State<BetterDataTable> {
     BetterDataTableTheme theme,
   ) {
     // Check if custom expandable content exists
-    final hasCustomContent = hasExpandableContent &&
-        widget.expandableRowBuilder!(context, row, int.parse(rowPath.split('.').first)) != null;
+    final hasCustomContent =
+        hasExpandableContent &&
+        widget.expandableRowBuilder!(
+              context,
+              row,
+              int.parse(rowPath.split('.').first),
+            ) !=
+            null;
 
     // Only show toggle if there's something to expand
     final isExpandable = hasChildren || hasCustomContent;
 
     if (!isExpandable) return const SizedBox.shrink();
 
-    return Container(
-      padding: theme.cellPadding,
-      alignment: Alignment.center,
+    return Center(
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
         onTap: () {
@@ -832,14 +831,17 @@ class _BetterDataTableState extends State<BetterDataTable> {
           });
           widget.onRowExpanded?.call(rowPath);
         },
-        child: Padding(
-          padding: const EdgeInsets.all(4),
-          child: _expandedRows.contains(rowPath)
-              ? (theme.rowCollapseIcon ??
-                    const Icon(Icons.expand_less, size: 20))
-              : (theme.rowExpandIcon ??
-                    const Icon(Icons.expand_more, size: 20)),
-        ),
+        child: _expandedRows.contains(rowPath)
+            ? (theme.rowCollapseIcon ??
+                  const Padding(
+                    padding: EdgeInsets.all(4),
+                    child: Icon(Icons.expand_less, size: 20),
+                  ))
+            : (theme.rowExpandIcon ??
+                  const Padding(
+                    padding: EdgeInsets.all(4),
+                    child: Icon(Icons.expand_more, size: 20),
+                  )),
       ),
     );
   }
@@ -856,7 +858,10 @@ class _BetterDataTableState extends State<BetterDataTable> {
     final content = widget.expandableRowBuilder!(context, row, rowIndex);
     if (content == null) {
       return TableRow(
-        children: List.generate(_totalColumnCount, (_) => const SizedBox.shrink()),
+        children: List.generate(
+          _totalColumnCount,
+          (_) => const SizedBox.shrink(),
+        ),
       );
     }
 
@@ -867,10 +872,7 @@ class _BetterDataTableState extends State<BetterDataTable> {
           padding: theme.expandedRowPadding ?? theme.cellPadding,
           child: content,
         ),
-        ...List.generate(
-          _totalColumnCount - 1,
-          (_) => const SizedBox.shrink(),
-        ),
+        ...List.generate(_totalColumnCount - 1, (_) => const SizedBox.shrink()),
       ],
     );
   }
@@ -1020,7 +1022,8 @@ class _BetterDataTableState extends State<BetterDataTable> {
         );
       }
 
-      final hasExpandColumn = widget.expandableRowBuilder != null ||
+      final hasExpandColumn =
+          widget.expandableRowBuilder != null ||
           _anyRowHasChildren(widget.rows);
       if (hasExpandColumn) {
         cells.add(const SizedBox.shrink());

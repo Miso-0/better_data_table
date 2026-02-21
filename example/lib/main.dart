@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:better_data_table/better_data_table.dart';
+import 'package:flutter/rendering.dart';
 
 void main() {
+  debugRepaintRainbowEnabled = true; // Enable repaint rainbow for debugging
   runApp(const MyApp());
 }
 
