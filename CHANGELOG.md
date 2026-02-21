@@ -1,3 +1,21 @@
+## 0.2.0
+
+**New features:**
+- **Pointer cursor on clickable rows** — rows with any tap handler (`onRowTap`,
+  `onRowDoubleTap`, `onRowLongPress`, `onRowSecondaryTap`, `BetterDataTableRow.onTap`)
+  automatically show `SystemMouseCursors.click` on desktop and web
+- **Fully customizable icons** — six new `Widget?` fields on `BetterDataTableTheme`
+  let you replace every icon with any widget:
+  - `sortAscendingIcon` / `sortDescendingIcon` — sort direction indicators in column headers
+  - `rowExpandIcon` / `rowCollapseIcon` — expand/collapse toggle on hierarchical and
+    expandable rows
+  - `groupExpandIcon` / `groupCollapseIcon` — chevron in collapsible group headers
+- **No empty box for non-expandable rows** — when the expand column is present but a
+  row has no children and no expandable content, the cell now renders as
+  `SizedBox.shrink()` instead of a padded empty container
+
+---
+
 ## 0.1.0
 
 Initial public release.
