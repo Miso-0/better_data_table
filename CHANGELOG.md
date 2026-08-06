@@ -1,3 +1,15 @@
+## 0.2.2
+
+**New features:**
+- **`BetterDataTable.expandedRowChildBuilder`** — a new expansion builder whose
+  content renders as its own full-width block between rows instead of being
+  placed inside the expand column's table cell like `expandableRowBuilder`.
+  Falls back to `expandableRowBuilder` for a row when it returns `null`, so
+  both builders can be mixed on the same table. Table borders/dividers won't
+  draw through this content since it sits outside the `Table` widget.
+
+---
+
 ## 0.2.1
 
 **Fixed:**

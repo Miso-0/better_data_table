@@ -665,6 +665,170 @@ void main() {
   });
 
   // ==========================================================================
+  // BetterDataTable – expandedRowChildBuilder (full-width expansion)
+  // ==========================================================================
+
+  group('BetterDataTable – expandedRowChildBuilder', () {
+    testWidgets('expand_more icon shown when only expandedRowChildBuilder is set', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          BetterDataTable(
+            columns: const [BetterDataTableColumn(header: Text('Name'))],
+            rows: const [
+              BetterDataTableRow(cells: [Text('Alice')]),
+            ],
+            expandedRowChildBuilder: (_, _, _) => const Text('Full-width'),
+          ),
+        ),
+      );
+      expect(find.byIcon(Icons.expand_more), findsOneWidget);
+    });
+
+    testWidgets('tapping expand icon shows and hides the full-width content', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          BetterDataTable(
+            columns: const [BetterDataTableColumn(header: Text('Name'))],
+            rows: const [
+              BetterDataTableRow(cells: [Text('Alice')]),
+            ],
+            expandedRowChildBuilder: (_, _, _) => const Text('Full-width'),
+          ),
+        ),
+      );
+
+      expect(find.text('Full-width'), findsNothing);
+      await tester.tap(find.byIcon(Icons.expand_more));
+      await tester.pump();
+      expect(find.text('Full-width'), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.expand_less));
+      await tester.pump();
+      expect(find.text('Full-width'), findsNothing);
+    });
+
+    testWidgets(
+      'splits the table into separate segments around the full-width content',
+      (tester) async {
+        await tester.pumpWidget(
+          _wrap(
+            BetterDataTable(
+              columns: const [
+                BetterDataTableColumn(header: Text('Name')),
+                BetterDataTableColumn(header: Text('Age')),
+              ],
+              rows: const [
+                BetterDataTableRow(cells: [Text('Alice'), Text('28')]),
+                BetterDataTableRow(cells: [Text('Bob'), Text('34')]),
+              ],
+              expandedRowChildBuilder: (_, _, _) => const Text('Full-width'),
+            ),
+          ),
+        );
+
+        // Collapsed: header + both rows fit in a single Table.
+        expect(find.byType(Table), findsOneWidget);
+
+        await tester.tap(find.byIcon(Icons.expand_more).first);
+        await tester.pump();
+
+        // Expanded: the free-form content is not part of any Table, so the
+        // rows before and after it render as two separate Table segments.
+        expect(find.byType(Table), findsNWidgets(2));
+        expect(find.text('Full-width'), findsOneWidget);
+        expect(find.text('Bob'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'takes precedence over expandableRowBuilder when both return content',
+      (tester) async {
+        await tester.pumpWidget(
+          _wrap(
+            BetterDataTable(
+              columns: const [BetterDataTableColumn(header: Text('Name'))],
+              rows: const [
+                BetterDataTableRow(cells: [Text('Alice')]),
+              ],
+              expandableRowBuilder: (_, _, _) => const Text('Column-confined'),
+              expandedRowChildBuilder: (_, _, _) => const Text('Full-width'),
+            ),
+          ),
+        );
+
+        await tester.tap(find.byIcon(Icons.expand_more));
+        await tester.pump();
+        expect(find.text('Full-width'), findsOneWidget);
+        expect(find.text('Column-confined'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'falls back to expandableRowBuilder when expandedRowChildBuilder returns null',
+      (tester) async {
+        await tester.pumpWidget(
+          _wrap(
+            BetterDataTable(
+              columns: const [BetterDataTableColumn(header: Text('Name'))],
+              rows: const [
+                BetterDataTableRow(cells: [Text('Alice')]),
+              ],
+              expandableRowBuilder: (_, _, _) => const Text('Column-confined'),
+              expandedRowChildBuilder: (_, _, _) => null,
+            ),
+          ),
+        );
+
+        await tester.tap(find.byIcon(Icons.expand_more));
+        await tester.pump();
+        expect(find.text('Column-confined'), findsOneWidget);
+      },
+    );
+
+    testWidgets('both builders null hides the expand icon', (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          BetterDataTable(
+            columns: const [BetterDataTableColumn(header: Text('Name'))],
+            rows: const [
+              BetterDataTableRow(cells: [Text('Alice')]),
+            ],
+            expandableRowBuilder: (_, _, _) => null,
+            expandedRowChildBuilder: (_, _, _) => null,
+          ),
+        ),
+      );
+      expect(find.byIcon(Icons.expand_more), findsNothing);
+    });
+
+    testWidgets('renders correctly alongside footer rows', (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          BetterDataTable(
+            columns: const [BetterDataTableColumn(header: Text('Name'))],
+            rows: const [
+              BetterDataTableRow(cells: [Text('Alice')]),
+            ],
+            footerRows: const [
+              BetterDataTableRow(cells: [Text('Total')]),
+            ],
+            expandedRowChildBuilder: (_, _, _) => const Text('Full-width'),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byIcon(Icons.expand_more));
+      await tester.pump();
+      expect(find.text('Full-width'), findsOneWidget);
+      expect(find.text('Total'), findsOneWidget);
+    });
+  });
+
+  // ==========================================================================
   // BetterDataTable – groups
   // ==========================================================================
 

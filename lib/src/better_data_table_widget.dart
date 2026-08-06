@@ -61,6 +61,7 @@ class BetterDataTable extends StatefulWidget {
     this.onRowSelected,
     // ── Expansion ────────────────────────────────────────────────────────────
     this.expandableRowBuilder,
+    this.expandedRowChildBuilder,
     this.expandedRows = const {},
     this.onRowExpanded,
     // ── Loading ───────────────────────────────────────────────────────────────
@@ -181,6 +182,10 @@ class BetterDataTable extends StatefulWidget {
   /// Returns the widget to display below the row when it is expanded, or
   /// `null` if the row is not expandable.
   ///
+  /// The returned widget is placed inside the expand column's table cell, so
+  /// it is constrained to that column's width. Use [expandedRowChildBuilder]
+  /// instead when the content needs to span the full width of the table.
+  ///
   /// **Note:** If rows have [BetterDataTableRow.children], they will automatically
   /// be expandable regardless of this builder. This builder is for custom
   /// expandable content that isn't hierarchical sub-rows.
@@ -190,6 +195,24 @@ class BetterDataTable extends StatefulWidget {
     int rowIndex,
   )?
   expandableRowBuilder;
+
+  /// Returns a widget to display below the row when it is expanded, sized to
+  /// the full width of the table rather than a single column.
+  ///
+  /// Unlike [expandableRowBuilder], the returned widget is not placed inside
+  /// a table cell — it renders as its own full-width block between the
+  /// surrounding table rows. This means table borders/dividers configured via
+  /// [BetterDataTableTheme.border] or [rowDivider] will not draw through it.
+  ///
+  /// Returning `null` for a row falls back to [expandableRowBuilder] (if
+  /// provided) for that row. If both are `null` for a row, no expand toggle
+  /// is shown unless the row also has [BetterDataTableRow.children].
+  final Widget? Function(
+    BuildContext context,
+    BetterDataTableRow row,
+    int rowIndex,
+  )?
+  expandedRowChildBuilder;
 
   /// Row paths that are currently expanded.
   /// For hierarchical rows, use dot-separated paths like "0", "0.1", "0.1.2".
@@ -310,12 +333,15 @@ class _BetterDataTableState extends State<BetterDataTable> {
     return result;
   }
 
+  bool get _hasExpandColumn =>
+      widget.expandableRowBuilder != null ||
+      widget.expandedRowChildBuilder != null ||
+      _anyRowHasChildren(widget.rows);
+
   int get _totalColumnCount {
-    final hasExpandColumn =
-        widget.expandableRowBuilder != null || _anyRowHasChildren(widget.rows);
     return _visibleColumns.length +
         (widget.showCheckboxes ? 1 : 0) +
-        (hasExpandColumn ? 1 : 0);
+        (_hasExpandColumn ? 1 : 0);
   }
 
   bool _anyRowHasChildren(List<BetterDataTableRow> rows) {
@@ -387,18 +413,58 @@ class _BetterDataTableState extends State<BetterDataTable> {
   }
 
   Widget _buildTable(BuildContext context, BetterDataTableTheme theme) {
-    return Table(
-      border: widget.border ?? theme.border,
-      columnWidths: _buildColumnWidths(),
-      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-      children: [
-        _buildHeaderRow(context, theme),
-        if (widget.groups != null)
-          ..._buildGroupedRows(context, theme)
-        else
-          ..._buildDataRows(context, theme),
-        if (widget.footerRows != null) ..._buildFooterRows(context, theme),
-      ],
+    final items = <Object>[
+      _buildHeaderRow(context, theme),
+      if (widget.groups != null)
+        ..._buildGroupedRows(context, theme)
+      else
+        ..._buildDataRows(context, theme),
+      if (widget.footerRows != null) ..._buildFooterRows(context, theme),
+    ];
+
+    return _renderTableSegments(items, theme);
+  }
+
+  /// Renders [items] (a mix of [TableRow]s and [_FullWidthRow] markers) as
+  /// one [Table] when there is no full-width content, or as a [Column] of
+  /// [Table] segments interleaved with full-width widgets otherwise. Each
+  /// segment shares the same [columnWidths] so columns stay aligned across
+  /// segments; only the first segment carries the header row.
+  Widget _renderTableSegments(List<Object> items, BetterDataTableTheme theme) {
+    final columnWidths = _buildColumnWidths();
+    final border = widget.border ?? theme.border;
+
+    final segments = <Widget>[];
+    var currentRows = <TableRow>[];
+
+    void flushTableSegment() {
+      if (currentRows.isEmpty) return;
+      segments.add(
+        Table(
+          border: border,
+          columnWidths: columnWidths,
+          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+          children: currentRows,
+        ),
+      );
+      currentRows = <TableRow>[];
+    }
+
+    for (final item in items) {
+      if (item is _FullWidthRow) {
+        flushTableSegment();
+        segments.add(item.child);
+      } else {
+        currentRows.add(item as TableRow);
+      }
+    }
+    flushTableSegment();
+
+    if (segments.length == 1) return segments.first;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: segments,
     );
   }
 
@@ -426,9 +492,7 @@ class _BetterDataTableState extends State<BetterDataTable> {
       widths[vi + offset] = w;
     }
 
-    final hasExpandColumn =
-        widget.expandableRowBuilder != null || _anyRowHasChildren(widget.rows);
-    if (hasExpandColumn) {
+    if (_hasExpandColumn) {
       widths[visible.length + offset] = const FixedColumnWidth(48);
     }
 
@@ -448,9 +512,7 @@ class _BetterDataTableState extends State<BetterDataTable> {
       cells.add(_buildHeaderCell(context, column, originalIndex, theme));
     }
 
-    final hasExpandColumn =
-        widget.expandableRowBuilder != null || _anyRowHasChildren(widget.rows);
-    if (hasExpandColumn) {
+    if (_hasExpandColumn) {
       cells.add(const SizedBox(width: 48));
     }
 
@@ -546,11 +608,8 @@ class _BetterDataTableState extends State<BetterDataTable> {
 
   // ── Data rows ──────────────────────────────────────────────────────────────
 
-  List<TableRow> _buildDataRows(
-    BuildContext context,
-    BetterDataTableTheme theme,
-  ) {
-    final rows = <TableRow>[];
+  List<Object> _buildDataRows(BuildContext context, BetterDataTableTheme theme) {
+    final rows = <Object>[];
     for (var i = 0; i < widget.rows.length; i++) {
       _buildDataRowRecursive(context, widget.rows[i], i, '$i', 0, theme, rows);
     }
@@ -564,17 +623,30 @@ class _BetterDataTableState extends State<BetterDataTable> {
     String rowPath,
     int nestingLevel,
     BetterDataTableTheme theme,
-    List<TableRow> rows,
+    List<Object> rows,
   ) {
     // Add the current row
     rows.add(
       _buildDataRow(context, row, rowIndex, rowPath, nestingLevel, theme),
     );
 
-    // Check if we should show custom expanded content
+    // Check if we should show custom expanded content. The full-width
+    // builder takes precedence per row; if it returns null, fall back to
+    // the column-confined builder.
     final isExpanded = _expandedRows.contains(rowPath);
-    if (isExpanded && widget.expandableRowBuilder != null) {
-      rows.add(_buildExpandedRow(context, row, rowIndex, rowPath, theme));
+    if (isExpanded) {
+      final fullWidthContent = widget.expandedRowChildBuilder?.call(
+        context,
+        row,
+        rowIndex,
+      );
+      if (fullWidthContent != null) {
+        rows.add(
+          _FullWidthRow(_buildFullWidthExpandedContent(fullWidthContent, theme)),
+        );
+      } else if (widget.expandableRowBuilder != null) {
+        rows.add(_buildExpandedRow(context, row, rowIndex, rowPath, theme));
+      }
     }
 
     // Recursively add child rows if expanded
@@ -637,11 +709,10 @@ class _BetterDataTableState extends State<BetterDataTable> {
 
     // Expand toggle column – always add when the column exists to keep all rows
     // the same width. The toggle renders empty for non-expandable rows.
-    final hasExpandColumn =
-        widget.expandableRowBuilder != null || _anyRowHasChildren(widget.rows);
-    if (hasExpandColumn) {
+    if (_hasExpandColumn) {
       final hasChildren = row.children != null && row.children!.isNotEmpty;
       final hasExpandableContent = widget.expandableRowBuilder != null;
+      final hasFullWidthContent = widget.expandedRowChildBuilder != null;
       cells.add(
         _buildExpandToggle(
           context,
@@ -649,6 +720,7 @@ class _BetterDataTableState extends State<BetterDataTable> {
           rowPath,
           hasChildren,
           hasExpandableContent,
+          hasFullWidthContent,
           theme,
         ),
       );
@@ -801,17 +873,17 @@ class _BetterDataTableState extends State<BetterDataTable> {
     String rowPath,
     bool hasChildren,
     bool hasExpandableContent,
+    bool hasFullWidthContent,
     BetterDataTableTheme theme,
   ) {
     // Check if custom expandable content exists
+    final localIndex = int.parse(rowPath.split('.').first);
     final hasCustomContent =
-        hasExpandableContent &&
-        widget.expandableRowBuilder!(
-              context,
-              row,
-              int.parse(rowPath.split('.').first),
-            ) !=
-            null;
+        (hasFullWidthContent &&
+            widget.expandedRowChildBuilder!(context, row, localIndex) !=
+                null) ||
+        (hasExpandableContent &&
+            widget.expandableRowBuilder!(context, row, localIndex) != null);
 
     // Only show toggle if there's something to expand
     final isExpandable = hasChildren || hasCustomContent;
@@ -877,13 +949,28 @@ class _BetterDataTableState extends State<BetterDataTable> {
     );
   }
 
+  /// Wraps content from [expandedRowChildBuilder] for display as its own
+  /// full-width block, matching the padding/decoration used by
+  /// [_buildExpandedRow] for visual consistency with the column-confined
+  /// variant.
+  Widget _buildFullWidthExpandedContent(
+    Widget content,
+    BetterDataTableTheme theme,
+  ) {
+    return Container(
+      padding: theme.expandedRowPadding ?? theme.cellPadding,
+      decoration: theme.expandedRowDecoration,
+      child: content,
+    );
+  }
+
   // ── Groups ─────────────────────────────────────────────────────────────────
 
-  List<TableRow> _buildGroupedRows(
+  List<Object> _buildGroupedRows(
     BuildContext context,
     BetterDataTableTheme theme,
   ) {
-    final rows = <TableRow>[];
+    final rows = <Object>[];
     final groups = widget.groups!;
 
     for (var gi = 0; gi < groups.length; gi++) {
@@ -1022,10 +1109,7 @@ class _BetterDataTableState extends State<BetterDataTable> {
         );
       }
 
-      final hasExpandColumn =
-          widget.expandableRowBuilder != null ||
-          _anyRowHasChildren(widget.rows);
-      if (hasExpandColumn) {
+      if (_hasExpandColumn) {
         cells.add(const SizedBox.shrink());
       }
 
@@ -1056,4 +1140,14 @@ class _BetterDataTableState extends State<BetterDataTable> {
       ),
     );
   }
+}
+
+/// Marks a widget from [BetterDataTable.expandedRowChildBuilder] that must
+/// render outside the Table's row/cell layout so it can span the full table
+/// width. Encountering one in the row list splits the surrounding rows into
+/// separate [Table] segments with this widget placed between them.
+class _FullWidthRow {
+  const _FullWidthRow(this.child);
+
+  final Widget child;
 }

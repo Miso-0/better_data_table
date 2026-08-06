@@ -3,7 +3,7 @@ import 'package:better_data_table/better_data_table.dart';
 import 'package:flutter/rendering.dart';
 
 void main() {
-  debugRepaintRainbowEnabled = true; // Enable repaint rainbow for debugging
+  // debugRepaintRainbowEnabled = true; // Enable repaint rainbow for debugging
   runApp(const MyApp());
 }
 
@@ -53,6 +53,9 @@ class ExamplesPage extends StatelessWidget {
           const SizedBox(height: 32),
           _buildSectionTitle('6. Custom Icons'),
           const CustomIconsExample(),
+          const SizedBox(height: 32),
+          _buildSectionTitle('7. Full-Width Expanded Content'),
+          const FullWidthExpandedRowExample(),
         ],
       ),
     );
@@ -608,6 +611,94 @@ class _CustomIconsExampleState extends State<CustomIconsExample> {
                   ],
                 ),
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Example 7: Full-width expanded content
+class FullWidthExpandedRowExample extends StatefulWidget {
+  const FullWidthExpandedRowExample({super.key});
+
+  @override
+  State<FullWidthExpandedRowExample> createState() =>
+      _FullWidthExpandedRowExampleState();
+}
+
+class _FullWidthExpandedRowExampleState
+    extends State<FullWidthExpandedRowExample> {
+  Set<String> expandedRows = {};
+
+  static final _people = [
+    Person('Alice', 28, 'New York'),
+    Person('Bob', 34, 'Chicago'),
+    Person('Carol', 41, 'Seattle'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'expandedRowChildBuilder: content spans the full table width '
+              'instead of only the first column',
+              style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+            ),
+            const SizedBox(height: 8),
+            BetterDataTable(
+              expandedRows: expandedRows,
+              onRowExpanded: (path) {
+                setState(() {
+                  expandedRows.contains(path)
+                      ? expandedRows.remove(path)
+                      : expandedRows.add(path);
+                });
+              },
+              columns: const [
+                BetterDataTableColumn(
+                  header: Text('Name'),
+                  width: FlexColumnWidth(2),
+                ),
+                BetterDataTableColumn(
+                  header: Text('Age'),
+                  width: FlexColumnWidth(1),
+                ),
+                BetterDataTableColumn(
+                  header: Text('City'),
+                  width: FlexColumnWidth(2),
+                ),
+              ],
+              rows: _people
+                  .map(
+                    (p) => BetterDataTableRow(
+                      cells: [Text(p.name), Text('${p.age}'), Text(p.city)],
+                    ),
+                  )
+                  .toList(),
+              expandedRowChildBuilder: (context, row, index) {
+                final person = _people[index];
+                return Row(
+                  children: [
+                    CircleAvatar(child: Text(person.name[0])),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        '${person.name} lives in ${person.city} and is '
+                        '${person.age} years old. This block spans the '
+                        'full width of the table, not just the first '
+                        'column.',
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ],
         ),

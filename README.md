@@ -197,6 +197,35 @@ BetterDataTable(
 )
 ```
 
+### Expandable rows (full-width content)
+
+`expandableRowBuilder`'s content is placed inside the expand column's table
+cell, so it's constrained to that column's width. Use
+`expandedRowChildBuilder` instead when the expanded content needs to span the
+full width of the table — it renders as its own block between rows rather
+than inside a table cell. Returning `null` for a row falls back to
+`expandableRowBuilder` (if provided) for that row.
+
+Note that table borders/dividers won't draw through this content, since it
+sits outside the `Table` widget that draws them.
+
+```dart
+BetterDataTable(
+  expandedRows: _expanded,
+  onRowExpanded: (path) => setState(() {
+    _expanded.contains(path)
+        ? _expanded.remove(path)
+        : _expanded.add(path);
+  }),
+  expandedRowChildBuilder: (context, row, index) => Padding(
+    padding: const EdgeInsets.all(16),
+    child: Chart(data: row.chartData),
+  ),
+  columns: [ /* ... */ ],
+  rows: _rows,
+)
+```
+
 ### Collapsible groups
 
 ```dart
